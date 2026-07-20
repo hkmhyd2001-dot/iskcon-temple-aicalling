@@ -67,4 +67,35 @@ export class CartesiaTtsService {
 
     return Buffer.from(await response.arrayBuffer());
   }
+
+  // List the Cartesia voices available on the account, so the dashboard can show
+  // a picker instead of asking for a raw voice UUID. Handles both the plain-array
+  // and the paginated ({data:[…]}) response shapes.
+  async listVoices(apiKey?: string): Promise<
+    Array<{ id: string; name: string; language?: string; description?: string }>
+  > {
+    const key = apiKey ?? env.CARTESIA_API_KEY;
+    if (!key) throw new Error("Cartesia API key is not configured (CARTESIA_API_KEY).");
+
+    const res = await fetch("https://api.cartesia.ai/voices/?limit=100", {
+      headers: { "X-API-Key": key, "Cartesia-Version": "2026-03-01" }
+    });
+    if (!res.ok) {
+      throw new Error(`Cartesia list voices failed (${res.status}): ${await res.text()}`);
+    }
+
+    const json = (await res.json()) as unknown;
+    const arr: Array<Record<string, unknown>> = Array.isArray(json)
+      ? (json as Array<Record<string, unknown>>)
+      : ((json as { data?: Array<Record<string, unknown>> }).data ?? []);
+
+    return arr
+      .filter((v) => typeof v.id === "string" && typeof v.name === "string")
+      .map((v) => ({
+        id: v.id as string,
+        name: v.name as string,
+        language: typeof v.language === "string" ? v.language : undefined,
+        description: typeof v.description === "string" ? v.description : undefined
+      }));
+  }
 }
