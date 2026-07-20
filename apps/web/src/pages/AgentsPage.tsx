@@ -9,6 +9,7 @@ interface Agent {
   fromNumber?: string | null;
   voiceId?: string | null;
   isActive: boolean;
+  suppressedUntil?: string | null;
 }
 interface Voice {
   id: string;
@@ -100,6 +101,16 @@ export default function AgentsPage() {
     } catch (e) { setErr((e as Error).message); }
   };
 
+  const resume = async () => {
+    if (!selected) return;
+    setErr(""); setOk("");
+    try {
+      const res = await api.patch<{ agent: Agent }>(`/agents/${selected.id}`, { resumeNow: true });
+      setAgents((prev) => prev.map((a) => (a.id === res.agent.id ? res.agent : a)));
+      setOk("Alerts resumed — calls will fire on the next crossing.");
+    } catch (e) { setErr((e as Error).message); }
+  };
+
   const compose = async () => {
     if (!instruction.trim() || !selected) return;
     setErr("");
@@ -164,6 +175,12 @@ export default function AgentsPage() {
         </div>
       ) : (
         <div className="card">
+          {selected.suppressedUntil && new Date(selected.suppressedUntil) > new Date() && (
+            <div className="error" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <span>⏸ Alerts paused (a guard snoozed via the call keypad) until <b>{new Date(selected.suppressedUntil).toLocaleString()}</b>. No calls will be placed until then.</span>
+              <button className="btn small" onClick={resume} style={{ whiteSpace: "nowrap" }}>▶ Resume now</button>
+            </div>
+          )}
           <label style={{ marginTop: 0 }}>Name</label>
           <input value={selected.name} onChange={(e) => patch({ name: e.target.value })} />
 

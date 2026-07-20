@@ -4,6 +4,18 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { env } from "../config/env.js";
 import { getOrRenderAgentAudio, getAudioByKey } from "../services/audio/audioStore.js";
 import { verifyPlivoSignature } from "../services/telephony/plivoSignature.js";
+import { audit } from "../utils/audit.js";
+
+// DTMF snooze map: 0 = 30 minutes, every other digit = that many hours.
+const SNOOZE_HOURS: Record<string, number> = {
+  "0": 0.5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9
+};
+function snoozeLabel(hours: number): string {
+  if (hours < 1) return "thirty minutes";
+  return `${hours} hour${hours > 1 ? "s" : ""}`;
+}
+const SNOOZE_PROMPT =
+  "To pause further alerts, press 0 for thirty minutes, or press a number from 1 to 9 for that many hours. Otherwise you may hang up.";
 
 export const webhookRoutes = Router();
 
@@ -37,19 +49,41 @@ webhookRoutes.get(
 
     await prisma.call.update({ where: { id: call.id }, data: { status: "answered" } }).catch(() => undefined);
 
+    // After the message, gather one keypad digit so a guard can snooze further
+    // alerts (0=30min, 1-9=hours). If no key is pressed, the call just ends.
+    const gatherUrl = `${env.SERVER_URL}/api/webhooks/plivo/gather/${call.id}`;
+    const getDigitsOpen =
+      `<GetDigits action="${gatherUrl}" method="POST" numDigits="1" timeout="10" retries="1" validDigits="0123456789">`;
+
     try {
       const audio = await getOrRenderAgentAudio(agent);
       const audioUrl = `${env.SERVER_URL}/api/webhooks/audio/${audio.cacheKey}.wav`;
-      // Play twice with a short gap — a guard must not miss the message.
+      // Play twice with a short gap, then the snooze options — all inside
+      // GetDigits so a press at any point is captured.
       xml(
         res,
-        `<Response><Play>${audioUrl}</Play><Wait length="1"/><Play>${audioUrl}</Play></Response>`
+        `<Response>` +
+          getDigitsOpen +
+            `<Play>${audioUrl}</Play><Wait length="1"/><Play>${audioUrl}</Play>` +
+            `<Speak>${SNOOZE_PROMPT}</Speak>` +
+          `</GetDigits>` +
+          `<Speak>No option selected. Goodbye.</Speak>` +
+        `</Response>`
       );
     } catch (err) {
       // TTS failed → fall back to Plivo's built-in <Speak> so the alert still lands.
       console.error("[webhook] audio render failed, falling back to Speak:", (err as Error).message);
       const safe = agent.message.replace(/[<&>]/g, " ");
-      xml(res, `<Response><Speak>${safe}</Speak><Wait length="1"/><Speak>${safe}</Speak></Response>`);
+      xml(
+        res,
+        `<Response>` +
+          getDigitsOpen +
+            `<Speak>${safe}</Speak><Wait length="1"/><Speak>${safe}</Speak>` +
+            `<Speak>${SNOOZE_PROMPT}</Speak>` +
+          `</GetDigits>` +
+          `<Speak>No option selected. Goodbye.</Speak>` +
+        `</Response>`
+      );
     }
   })
 );
@@ -92,6 +126,42 @@ webhookRoutes.post(
       });
     }
     res.status(200).send("OK");
+  })
+);
+
+// ─── POST /api/webhooks/plivo/gather/:callId ─────────────────────────────────
+// The guard pressed a keypad digit during the alert call. Map it to a snooze
+// window and pause further alerts for THIS agent until then.
+webhookRoutes.post(
+  "/plivo/gather/:callId",
+  asyncHandler(async (req, res) => {
+    if (!verifyPlivoSignature(req)) {
+      res.status(403).send("Invalid signature.");
+      return;
+    }
+
+    const digit = String((req.body?.Digits ?? "") as string).trim();
+    const hours = SNOOZE_HOURS[digit];
+    const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
+
+    if (!call || hours === undefined) {
+      xml(res, `<Response><Speak>No valid option selected. Goodbye.</Speak><Hangup/></Response>`);
+      return;
+    }
+
+    const until = new Date(Date.now() + hours * 3600 * 1000);
+    await prisma.agent
+      .update({ where: { id: call.agentId }, data: { suppressedUntil: until } })
+      .catch(() => undefined);
+
+    const label = snoozeLabel(hours);
+    void audit(call.organizationId, "alert.snoozed", `Alerts paused for ${label} via keypad (digit ${digit}).`, {
+      agentId: call.agentId,
+      digit,
+      until: until.toISOString()
+    });
+
+    xml(res, `<Response><Speak>Alerts have been paused for ${label}. Goodbye.</Speak><Hangup/></Response>`);
   })
 );
 

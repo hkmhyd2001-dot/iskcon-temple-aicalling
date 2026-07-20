@@ -72,6 +72,8 @@ agentRoutes.patch(
     if (b.voiceId !== undefined) data.voiceId = b.voiceId ? String(b.voiceId) : null;
     if (b.ttsModel !== undefined) data.ttsModel = b.ttsModel ? String(b.ttsModel) : null;
     if (typeof b.isActive === "boolean") data.isActive = b.isActive;
+    // "Resume now" — clear any active keypad snooze so alerts fire immediately.
+    if (b.resumeNow === true) data.suppressedUntil = null;
 
     // Any change that affects the spoken audio invalidates the cache pointer.
     if ("message" in data || "voiceId" in data || "ttsModel" in data || "language" in data) {

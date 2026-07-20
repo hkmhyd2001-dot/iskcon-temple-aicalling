@@ -73,6 +73,21 @@ alertRoutes.post(
       return;
     }
 
+    // Snooze gate: a guard may have pressed a keypad digit on a recent call to
+    // pause alerts. While the window is open, accept the request but place NO
+    // calls (return 200 so the Pi logs it cleanly rather than retrying).
+    if (agent.suppressedUntil && agent.suppressedUntil.getTime() > Date.now()) {
+      res.json({
+        message: `Alerts are paused until ${agent.suppressedUntil.toISOString()}. No calls placed.`,
+        calls: [],
+        dialed: 0,
+        skipped: targets.length,
+        suppressed: true,
+        suppressedUntil: agent.suppressedUntil
+      });
+      return;
+    }
+
     // Resolve caller ID: explicit override → agent → org default → env default.
     let fromNumber = normalizePhone(typeof body.fromNumber === "string" ? body.fromNumber : "");
     if (!fromNumber) fromNumber = normalizePhone(agent.fromNumber ?? "");

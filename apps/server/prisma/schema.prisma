@@ -78,6 +78,10 @@ model Agent {
   // Cache key of the last-rendered audio (message+voice+model hash). Lets us
   // detect when the message changed and re-render, and reuse otherwise (₹0 TTS).
   audioCacheKey     String?
+  // DTMF snooze. When a guard presses a digit on the alert call, further alerts
+  // for THIS agent are paused until this time (0=30min, n=n hours). Null/past =
+  // active. Set by the Plivo "gather" webhook; cleared by "Resume now".
+  suppressedUntil   DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
