@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [total, setTotal] = useState(0);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [testAgentId, setTestAgentId] = useState("");
   const [testPhone, setTestPhone] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -27,18 +28,20 @@ export default function DashboardPage() {
     setCalls(c.calls);
     setTotal(c.total);
     setAgents(a.agents);
+    // Default the test-call agent to the first active one (or the first agent).
+    setTestAgentId((prev) => prev || a.agents.find((ag) => ag.isActive)?.id || a.agents[0]?.id || "");
   };
 
   useEffect(() => { void load().catch((e) => setErr((e as Error).message)); }, []);
 
   const sendTest = async () => {
     setErr(""); setMsg("");
-    const agent = agents[0];
-    if (!agent) { setErr("Create an alert message first (Alert Message page)."); return; }
+    const agent = agents.find((ag) => ag.id === testAgentId);
+    if (!agent) { setErr("Pick an alert message to test (create one on the Alert Message page)."); return; }
     if (!testPhone.trim()) { setErr("Enter a phone number to test."); return; }
     try {
       await api.post("/calls/test", { agentId: agent.id, phone: testPhone.trim() });
-      setMsg(`Test call placed to ${testPhone}. It should ring shortly.`);
+      setMsg(`Test call placed to ${testPhone} using "${agent.name}". It should ring shortly.`);
       setTestPhone("");
       setTimeout(() => void load(), 3000);
     } catch (e) {
@@ -72,14 +75,35 @@ export default function DashboardPage() {
 
       <div className="card" style={{ marginBottom: 22 }}>
         <h2>Send a test call</h2>
-        <div className="row">
-          <input
-            placeholder="+919876543210"
-            value={testPhone}
-            onChange={(e) => setTestPhone(e.target.value)}
-            style={{ maxWidth: 240 }}
-          />
+        <div className="row" style={{ alignItems: "flex-end" }}>
+          <div>
+            <label style={{ marginTop: 0 }}>Alert message</label>
+            <select
+              value={testAgentId}
+              onChange={(e) => setTestAgentId(e.target.value)}
+              style={{ minWidth: 240 }}
+            >
+              {agents.length === 0 && <option value="">No alert messages</option>}
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}{a.isActive ? "" : " (disabled)"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ marginTop: 0 }}>Phone number</label>
+            <input
+              placeholder="+919876543210"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              style={{ maxWidth: 220 }}
+            />
+          </div>
           <button className="btn" onClick={sendTest}>🔔 Ring this number</button>
+        </div>
+        <div className="page-sub" style={{ margin: "10px 0 0" }}>
+          Rings the chosen number once, speaking the selected alert message.
         </div>
       </div>
 
