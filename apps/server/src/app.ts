@@ -11,6 +11,7 @@ import { alertRoutes } from "./routes/alert.routes.js";
 import { agentRoutes } from "./routes/agents.routes.js";
 import { callRoutes } from "./routes/calls.routes.js";
 import { apiKeyRoutes } from "./routes/apiKeys.routes.js";
+import { userRoutes } from "./routes/users.routes.js";
 import { settingsRoutes } from "./routes/settings.routes.js";
 import { voiceRoutes } from "./routes/voices.routes.js";
 import { webhookRoutes } from "./routes/webhooks.routes.js";
@@ -46,6 +47,7 @@ export function createApp() {
   app.use("/api/agents", agentRoutes);
   app.use("/api/calls", callRoutes);
   app.use("/api/api-keys", apiKeyRoutes);
+  app.use("/api/users", userRoutes);
   app.use("/api/settings", settingsRoutes);
   app.use("/api/voices", voiceRoutes);
   app.use("/api/webhooks", webhookRoutes);

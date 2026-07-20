@@ -159,9 +159,7 @@ export default function AgentsPage() {
             </select>
           </div>
           <button className="btn secondary" onClick={createAgent}>+ New alert</button>
-          {selected && agents.length > 1 && (
-            <button className="btn danger" onClick={remove}>Delete</button>
-          )}
+          {selected && <button className="btn danger" onClick={remove}>Delete</button>}
         </div>
         <div className="page-sub" style={{ margin: "10px 0 0" }}>
           {agents.length} alert agent{agents.length === 1 ? "" : "s"} total.

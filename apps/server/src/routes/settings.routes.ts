@@ -64,6 +64,39 @@ settingsRoutes.post(
   })
 );
 
+// PATCH /api/settings/numbers/:id — edit number / label, or set as default.
+settingsRoutes.patch(
+  "/numbers/:id",
+  requireUser("admin"),
+  asyncHandler(async (req, res) => {
+    const number = await prisma.phoneNumber.findUnique({ where: { id: String(req.params.id) } });
+    if (!number || number.organizationId !== req.auth!.organizationId) {
+      res.status(404).json({ message: "Number not found." });
+      return;
+    }
+    const b = req.body ?? {};
+    const data: Record<string, unknown> = {};
+    if (typeof b.label === "string") data.label = b.label.trim() || null;
+    if (b.phoneNumber !== undefined) {
+      const p = normalizePhone(b.phoneNumber);
+      if (!p) {
+        res.status(400).json({ message: "A valid E.164 phone number is required." });
+        return;
+      }
+      data.phoneNumber = p;
+    }
+    if (b.isDefaultOutbound === true) {
+      await prisma.phoneNumber.updateMany({
+        where: { organizationId: number.organizationId },
+        data: { isDefaultOutbound: false }
+      });
+      data.isDefaultOutbound = true;
+    }
+    const updated = await prisma.phoneNumber.update({ where: { id: number.id }, data });
+    res.json({ number: updated });
+  })
+);
+
 // DELETE /api/settings/numbers/:id
 settingsRoutes.delete(
   "/numbers/:id",

@@ -42,7 +42,7 @@ apiKeyRoutes.post(
   })
 );
 
-// POST /api/api-keys/:id/revoke
+// POST /api/api-keys/:id/revoke — disable a key but keep the row for audit.
 apiKeyRoutes.post(
   "/:id/revoke",
   asyncHandler(async (req, res) => {
@@ -53,6 +53,40 @@ apiKeyRoutes.post(
     }
     await prisma.apiKey.update({ where: { id: key.id }, data: { revokedAt: new Date() } });
     void audit(req.auth!.organizationId, "apikey.revoked", `API key "${key.name}" revoked.`, { keyId: key.id });
+    res.json({ ok: true });
+  })
+);
+
+// PATCH /api/api-keys/:id — rename a key.
+apiKeyRoutes.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const key = await prisma.apiKey.findUnique({ where: { id: String(req.params.id) } });
+    if (!key || key.organizationId !== req.auth!.organizationId) {
+      res.status(404).json({ message: "API key not found." });
+      return;
+    }
+    const name = String(req.body?.name ?? "").trim();
+    if (!name) {
+      res.status(400).json({ message: "Name is required." });
+      return;
+    }
+    const updated = await prisma.apiKey.update({ where: { id: key.id }, data: { name } });
+    res.json({ id: updated.id, name: updated.name });
+  })
+);
+
+// DELETE /api/api-keys/:id — permanently remove a key.
+apiKeyRoutes.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const key = await prisma.apiKey.findUnique({ where: { id: String(req.params.id) } });
+    if (!key || key.organizationId !== req.auth!.organizationId) {
+      res.status(404).json({ message: "API key not found." });
+      return;
+    }
+    await prisma.apiKey.delete({ where: { id: key.id } });
+    void audit(req.auth!.organizationId, "apikey.deleted", `API key "${key.name}" deleted.`, { keyId: key.id });
     res.json({ ok: true });
   })
 );

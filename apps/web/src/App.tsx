@@ -6,6 +6,7 @@ import DashboardPage from "./pages/DashboardPage";
 import AgentsPage from "./pages/AgentsPage";
 import CallsPage from "./pages/CallsPage";
 import ApiKeysPage from "./pages/ApiKeysPage";
+import TeamPage from "./pages/TeamPage";
 import SettingsPage from "./pages/SettingsPage";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/agents">Alert Message</NavLink>
           <NavLink to="/calls">Call History</NavLink>
           <NavLink to="/api-keys">API Keys</NavLink>
+          {user?.role === "admin" && <NavLink to="/team">Team</NavLink>}
           <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div className="foot">
@@ -51,6 +53,7 @@ export default function App() {
       <Route path="/agents" element={<Protected><AgentsPage /></Protected>} />
       <Route path="/calls" element={<Protected><CallsPage /></Protected>} />
       <Route path="/api-keys" element={<Protected><ApiKeysPage /></Protected>} />
+      <Route path="/team" element={<Protected><TeamPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
