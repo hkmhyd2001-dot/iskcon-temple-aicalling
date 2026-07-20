@@ -1,0 +1,54 @@
+
+==============================================================
+  YOUR STEPS  (You — Akhilendar — do this before sending)
+==============================================================
+
+GOOD NEWS: API key and Agent ID are already filled in.
+3 guard numbers are already added.
+You only need to add the remaining 7 guard numbers.
+
+--------------------------------------------------------------
+  STEP 1 — Add remaining 7 guard numbers in config.json
+--------------------------------------------------------------
+
+Open config.json with Notepad.
+
+You will see this at the bottom:
+
+    { "name": "Guard 4",  "phone": "+91XXXXXXXXXX" },
+    { "name": "Guard 5",  "phone": "+91XXXXXXXXXX" },
+    ...
+
+Replace each "+91XXXXXXXXXX" with the real number.
+Example: if guard number is 9876543210, type +919876543210
+
+Already added:
+  Guard 1 → 6303639014  ✓
+  Guard 2 → 9542763698  ✓
+  Guard 3 → 6303336123  ✓
+
+You need to add:
+  Guard 4  → +91__________
+  Guard 5  → +91__________
+  Guard 6  → +91__________
+  Guard 7  → +91__________
+  Guard 8  → +91__________
+  Guard 9  → +91__________
+  Guard 10 → +91__________
+
+Save config.json when done.
+
+--------------------------------------------------------------
+  STEP 2 — Send to IT team
+--------------------------------------------------------------
+
+Send the entire ISKCON_Security_Alert folder to IT person.
+
+Tell them:
+  "Please open IT_TEAM_STEPS.txt inside the folder and
+   follow those steps. It is very simple."
+
+--------------------------------------------------------------
+  THAT IS ALL YOU NEED TO DO.
+  IT team handles everything else.
+--------------------------------------------------------------

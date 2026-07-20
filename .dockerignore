@@ -1,0 +1,9 @@
+node_modules
+apps/web
+pi
+docs
+**/dist
+**/*.log
+.env
+.git
+__pycache__

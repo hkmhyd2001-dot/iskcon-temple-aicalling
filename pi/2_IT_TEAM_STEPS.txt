@@ -1,0 +1,137 @@
+
+==============================================================
+  IT TEAM STEPS
+  ISKCON Temple — Security Camera Alert System
+  Do these steps ONE TIME. After that it works forever.
+==============================================================
+
+WHAT THIS SYSTEM DOES:
+  When the Hikvision camera detects someone crossing the line,
+  this system automatically calls all security guards on their
+  mobile phones with an AI voice alert message.
+  It runs 24 hours, 7 days, automatically.
+
+WHAT YOU NEED:
+  - A Windows PC that stays ON 24/7 (the CCTV room PC)
+  - That PC must be on same network as camera NVR (192.168.3.100)
+  - The NVR admin password
+
+==============================================================
+  STEP 1 — Install Python
+==============================================================
+
+  1. Open browser on the PC
+  2. Go to:   https://python.org/downloads
+  3. Click the yellow Download button
+  4. Open the downloaded file to install
+  5. VERY IMPORTANT: Tick the checkbox "Add Python to PATH"  ✓
+  6. Click "Install Now"
+  7. Wait for finish, then close
+
+==============================================================
+  STEP 2 — Copy folder to PC
+==============================================================
+
+  1. Copy the ISKCON_Security_Alert folder
+  2. Paste it here:   C:\ISKCON_Security_Alert\
+     (directly on C drive, not inside any other folder)
+
+==============================================================
+  STEP 3 — Install the 24/7 background service
+==============================================================
+
+  1. Open the folder:  C:\ISKCON_Security_Alert\
+  2. Find this file:   INSTALL_SERVICE.bat
+  3. RIGHT-CLICK on it
+  4. Click "Run as administrator"
+  5. Click Yes if Windows asks
+  6. Wait — you will see it installing automatically
+  7. When you see "INSTALLATION COMPLETE" — done!
+
+  To check it worked:
+  Open browser → go to → http://localhost:5050
+  You should see the Security Alert dashboard page.
+
+==============================================================
+  STEP 4 — Connect to the Hikvision NVR camera
+==============================================================
+
+  1. Open the folder:  C:\ISKCON_Security_Alert\
+  2. Double-click:     CONFIGURE_NVR.bat
+  3. It will ask questions. Type these answers:
+
+  Question: NVR IP address
+  Answer:   192.168.3.100    then press Enter
+
+  Question: NVR Port
+  Answer:   7443             then press Enter
+
+  Question: NVR Username
+  Answer:   admin            then press Enter
+
+  Question: NVR Password
+  Answer:   (type the NVR admin password)   then press Enter
+
+  Question: This PC's IP
+  Answer:   Open new CMD window, type ipconfig, press Enter
+            Look for a number like 192.168.3.XX
+            Type that number    then press Enter
+
+  4. You will see SUCCESS when done.
+
+==============================================================
+  STEP 5 — Test to confirm everything works
+==============================================================
+
+  1. Open browser
+  2. Go to:   http://localhost:5050/test
+  3. Wait 30 seconds
+  4. All security guards should receive a phone call
+  5. If calls come → SETUP COMPLETE ✓
+
+  Now test with real camera:
+  Walk past the camera line-crossing zone
+  Guards should receive calls automatically ✓
+
+==============================================================
+  AFTER SETUP — NOTHING TO DO EVER AGAIN
+==============================================================
+
+  ✓ PC turns ON     → system starts automatically
+  ✓ PC is running   → system runs silently in background
+  ✓ Camera detects  → all guards called immediately
+  ✓ PC restarts     → system starts again automatically
+
+  To monitor the system anytime:
+  Open browser → http://localhost:5050
+  Shows all events and guard list.
+
+==============================================================
+  IF SOMETHING GOES WRONG
+==============================================================
+
+  Problem: http://localhost:5050 not opening
+  Fix:     Run INSTALL_SERVICE.bat again as Administrator
+
+  Problem: Step 4 shows "Cannot connect"
+  Fix:     Check NVR password is correct
+           Check this PC can ping 192.168.3.100
+
+  Problem: Test calls not coming in Step 5
+  Fix:     Open the file alerts.log in the folder
+           It shows exactly what went wrong
+
+==============================================================
+  FILES IN THIS FOLDER — DO NOT DELETE
+==============================================================
+
+  1_YOUR_STEPS.txt       Steps for Akhilendar (ignore this)
+  2_IT_TEAM_STEPS.txt    This file — your instructions
+  config.json            Settings (phone numbers, keys)
+  app.py                 Main program — do not touch
+  setup_nvr.py           Camera connection — do not touch
+  INSTALL_SERVICE.bat    Run as Admin in Step 3
+  CONFIGURE_NVR.bat      Run in Step 4
+  requirements.txt       Do not touch
+
+==============================================================

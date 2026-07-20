@@ -1,0 +1,63 @@
+:root {
+  --navy: #1a237e;
+  --navy-light: #3949ab;
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --text: #222;
+  --muted: #888;
+  --green: #2e7d32;
+  --red: #c62828;
+  --border: #e6e6e6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--navy); text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: var(--navy); color: #fff; padding: 22px 0; flex-shrink: 0; }
+.sidebar h1 { font-size: 15px; padding: 0 22px 18px; letter-spacing: .3px; }
+.sidebar nav a { display: block; color: #c5cae9; padding: 11px 22px; font-size: 14px; }
+.sidebar nav a.active, .sidebar nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
+.sidebar .foot { margin-top: 24px; padding: 16px 22px 0; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; color: #9fa8da; }
+.sidebar .foot button { background: none; border: 1px solid #5c6bc0; color: #c5cae9; border-radius: 5px; padding: 7px 14px; font-size: 12px; margin-top: 8px; }
+
+.main { flex: 1; padding: 26px 32px 60px; max-width: 1000px; }
+.page-title { font-size: 20px; color: var(--navy); margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 22px; }
+.card { background: var(--card); border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+.card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.card .big { font-size: 30px; font-weight: 700; color: var(--navy); }
+.card h2 { font-size: 14px; color: var(--navy); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 14px; }
+
+label { display: block; font-size: 12px; font-weight: 700; color: #555; margin: 12px 0 5px; }
+input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid #d0d0d0; border-radius: 5px; font-size: 14px; font-family: inherit; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--navy); }
+textarea { min-height: 90px; resize: vertical; }
+
+.btn { background: var(--navy); color: #fff; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; font-weight: 600; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.secondary { background: #eef0f7; color: var(--navy); }
+.btn.danger { background: #fff; color: var(--red); border: 1px solid #e0b4b4; }
+.btn.small { padding: 6px 12px; font-size: 12px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; padding: 8px 10px; border-bottom: 2px solid #eee; }
+td { padding: 9px 10px; border-bottom: 1px solid #f2f2f2; }
+.pill { padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.pill.completed, .pill.answered { background: #e8f5e9; color: var(--green); }
+.pill.ringing, .pill.queued { background: #fff8e1; color: #f57f17; }
+.pill.failed, .pill.no_answer { background: #ffebee; color: var(--red); }
+
+.error { background: #ffebee; border: 1px solid #ffcdd2; color: var(--red); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+.ok { background: #e8f5e9; border: 1px solid #a5d6a7; color: var(--green); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; word-break: break-all; }
+
+.login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { width: 360px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.badge.on { background: #e8f5e9; color: var(--green); }
+.badge.off { background: #ffebee; color: var(--red); }

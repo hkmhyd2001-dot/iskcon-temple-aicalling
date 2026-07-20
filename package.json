@@ -1,0 +1,20 @@
+{
+  "name": "iskcon-aicalls",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ISKCON Temple AI Voice Security Alert — announcement-only calling backend + dashboard. No Redis, no queue: every alert dials all guards at once.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @iskcon/server\" \"npm run dev --workspace @iskcon/web\"",
+    "dev:server": "npm run dev --workspace @iskcon/server",
+    "dev:web": "npm run dev --workspace @iskcon/web",
+    "build": "npm run build --workspaces",
+    "seed": "npm run seed --workspace @iskcon/server",
+    "typecheck": "npm run typecheck --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

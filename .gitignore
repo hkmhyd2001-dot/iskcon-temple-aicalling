@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.env.local
+*.log
+apps/server/prisma/generated/
+apps/web/dist/
+.DS_Store
+__pycache__/
+*.pyc
+pi/alerts.log
+# Pi runtime config holds a live acai_ API key once filled in — never commit it.
+pi/config.json

@@ -1,0 +1,149 @@
+==============================================================
+  RASPBERRY PI SETUP — ISKCON Security Alert System
+  The Pi replaces the Windows CCTV PC. It runs 24/7, starts
+  on boot, restarts itself if the app crashes. One-time setup.
+==============================================================
+
+WHAT YOU NEED
+  - Raspberry Pi 4 (2GB+) or Pi 5, with power adapter
+  - MicroSD card 32GB
+  - Ethernet cable plugged into the SAME network switch as
+    the NVR (192.168.3.x network)
+  - Your Windows laptop (for preparing the SD card)
+
+==============================================================
+  STEP 1 — Put the operating system on the SD card
+  (do this on your Windows laptop)
+==============================================================
+
+  1. Download "Raspberry Pi Imager" from:
+     https://www.raspberrypi.com/software
+  2. Insert the microSD card into your laptop
+  3. Open Raspberry Pi Imager:
+       - Device  : your Pi model
+       - OS      : Raspberry Pi OS Lite (64-bit)   <- "Lite" = no desktop, we don't need one
+       - Storage : your SD card
+  4. Click "NEXT" -> "EDIT SETTINGS" and set:
+       - Hostname        : iskcon-pi
+       - Username        : pi
+       - Password        : (choose one and WRITE IT DOWN)
+       - Wi-Fi           : leave OFF (we use ethernet cable)
+       - Enable SSH      : YES (Services tab -> "Use password authentication")
+  5. Click SAVE -> YES -> wait for writing to finish
+  6. Take the SD card out and put it into the Raspberry Pi
+
+==============================================================
+  STEP 2 — Connect the Pi at the temple
+==============================================================
+
+  1. Plug the ethernet cable: Pi <-> same switch/router as NVR
+  2. Plug in power. The Pi turns on by itself (no button)
+  3. Wait 2 minutes for first boot
+
+  Find the Pi's IP address (any ONE of these ways):
+    a) On a Windows PC on the same network, open CMD and type:
+           ping iskcon-pi.local
+       -> it shows the IP, e.g. 192.168.3.55
+    b) Or ask IT to check the router's device list for "iskcon-pi"
+
+==============================================================
+  STEP 3 — Copy this folder onto the Pi
+  (from any Windows PC on the same network)
+==============================================================
+
+  Open PowerShell in the folder that CONTAINS this folder, then:
+
+      scp -r ISKCON_FINAL pi@192.168.3.55:/home/pi/iskcon
+
+  (replace 192.168.3.55 with your Pi's real IP; password = the
+   one you set in Step 1)
+
+==============================================================
+  STEP 4 — Run the automatic setup (one command)
+==============================================================
+
+  1. Connect to the Pi from the same Windows PC:
+
+         ssh pi@192.168.3.55
+
+  2. Then run:
+
+         cd /home/pi/iskcon
+         bash pi_setup.sh
+
+  3. Wait ~2 minutes. When you see "SUCCESS! System is
+     running 24/7" the app is installed as a service that:
+       - starts automatically every time the Pi boots
+       - restarts itself within 3 seconds if it ever crashes
+
+==============================================================
+  STEP 5 — IMPORTANT: give the Pi a FIXED IP
+==============================================================
+
+  The NVR will send events to the Pi's IP address. If the Pi's
+  IP changes after a reboot, alerts silently stop. So the IP
+  must be fixed. EASIEST way:
+
+     Ask temple IT to add a "DHCP reservation" for the Pi in
+     the router (reserve e.g. 192.168.3.55 for the Pi's MAC).
+
+  This is a 2-minute router setting. Do not skip it.
+
+==============================================================
+  STEP 6 — Connect the NVR to the Pi (one time)
+==============================================================
+
+  Still inside the ssh window:
+
+      cd /home/pi/iskcon
+      venv/bin/python setup_nvr.py
+
+  Answer the questions:
+      NVR IP        : 192.168.3.100
+      NVR Port      : 7443
+      NVR Username  : admin
+      NVR Password  : (the NVR admin password)
+      This PC's IP  : the Pi's IP (e.g. 192.168.3.55)
+
+  You should see SUCCESS.
+
+==============================================================
+  STEP 7 — Test everything
+==============================================================
+
+  1. From any browser on the temple network:
+         http://192.168.3.55:5050          <- dashboard
+         http://192.168.3.55:5050/test     <- fires a test call
+     Guards should receive calls within seconds.
+
+  2. Real test: walk across the camera line ->
+     guards get called automatically.
+
+  3. Reboot test (proves 24/7): in the ssh window type
+         sudo reboot
+     Wait 2 minutes, open the dashboard again — it must be
+     back WITHOUT anyone touching anything. That is the
+     auto-start working.
+
+==============================================================
+  STEP 8 — Physical placement (the whole point!)
+==============================================================
+
+  - Put the Pi NEXT TO THE NVR, zip-tied or on a shelf
+  - Power the Pi FROM THE SAME UPS as the NVR/CCTV system
+    -> power cut? CCTV stays up, Pi stays up, calls still work
+  - Label it:  "SECURITY ALERT SYSTEM — DO NOT UNPLUG"
+
+==============================================================
+  DAILY USE / MAINTENANCE  — NOTHING. It runs itself.
+==============================================================
+
+  Change settings (guards, timings, API key):
+      http://<pi-ip>:5050  ->  Settings (top-right)
+
+  Useful commands if ever needed (via ssh):
+      sudo systemctl status iskcon-alert     <- is it running?
+      sudo systemctl restart iskcon-alert    <- manual restart
+      sudo journalctl -u iskcon-alert -n 50  <- last 50 log lines
+
+==============================================================

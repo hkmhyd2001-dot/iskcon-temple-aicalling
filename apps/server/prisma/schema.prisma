@@ -1,0 +1,155 @@
+// ISKCON AI Calls — announcement-only voice alert system.
+// MongoDB via Prisma. No Redis, no queue: alerts dial all guards in parallel.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// A tenant. This build is effectively single-org (the temple), but every row is
+// org-scoped so the same code could host multiple temples later.
+model Organization {
+  id        String   @id @default(uuid()) @map("_id")
+  name      String
+  slug      String   @unique
+  status    String   @default("active") // active | suspended
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  agents   Agent[]
+  apiKeys  ApiKey[]
+  calls    Call[]
+  numbers  PhoneNumber[]
+  audits   AuditEvent[]
+}
+
+// Dashboard login accounts.
+model User {
+  id             String   @id @default(uuid()) @map("_id")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  email          String   @unique
+  name           String?
+  passwordHash   String
+  role           String   @default("admin") // admin | viewer
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// Programmatic credential for the Raspberry Pi (app.py). Minted as `acai_<hex>`;
+// only the sha256 hash is stored.
+model ApiKey {
+  id             String   @id @default(uuid()) @map("_id")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  keyHash        String   @unique
+  prefix         String   // first chars, shown in the UI (e.g. "acai_89e5…")
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// The announcement configuration: what is said + which voice + caller ID.
+// One "agent" == one alert message. The Pi passes this agent's id.
+model Agent {
+  id                String   @id @default(uuid()) @map("_id")
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  name              String
+  // The exact words spoken to every guard.
+  message           String
+  language          String   @default("en") // en | hi | te | ta
+  telephonyProvider String   @default("plivo")
+  fromNumber        String?  // caller ID override; else falls back to org/env default
+  voiceId           String?  // Cartesia voice UUID; else env default
+  ttsModel          String?  // Cartesia model; else env default
+  isActive          Boolean  @default(true)
+  // Cache key of the last-rendered audio (message+voice+model hash). Lets us
+  // detect when the message changed and re-render, and reuse otherwise (₹0 TTS).
+  audioCacheKey     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  calls Call[]
+
+  @@index([organizationId])
+}
+
+// A rented Plivo number that can be used as caller ID.
+model PhoneNumber {
+  id               String   @id @default(uuid()) @map("_id")
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  provider         String   @default("plivo")
+  phoneNumber      String
+  label            String?
+  isActive         Boolean  @default(true)
+  isDefaultOutbound Boolean @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// One row per guard dialed. Written on /api/alert, updated by Plivo webhooks.
+model Call {
+  id                String   @id @default(uuid()) @map("_id")
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id])
+  targetName        String?
+  targetPhone       String
+  fromNumber        String?
+  telephonyProvider String   @default("plivo")
+  status            String   @default("queued") // queued | ringing | answered | completed | failed | no_answer
+  providerCallId    String?  // Plivo request_uuid / call_uuid
+  durationSeconds   Int?
+  errorMessage      String?
+  source            String   @default("alert") // alert | test | dashboard
+  startedAt         DateTime?
+  endedAt           DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([providerCallId])
+  @@index([agentId])
+}
+
+// Rendered TTS audio cached so the fixed alert costs ₹0 on repeat calls.
+// Stored in Mongo (bytes) so there is no S3/Redis dependency.
+model AudioCache {
+  id        String   @id @default(uuid()) @map("_id")
+  cacheKey  String   @unique // sha256(message|voiceId|model|language)
+  agentId   String?
+  mimeType  String   @default("audio/wav")
+  data      Bytes
+  byteSize  Int
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+}
+
+// Lightweight audit trail (alert fired, settings changed, key minted…).
+model AuditEvent {
+  id             String   @id @default(uuid()) @map("_id")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  type           String
+  message        String
+  metaJson       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}
