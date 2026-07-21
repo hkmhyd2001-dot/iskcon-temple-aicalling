@@ -16,7 +16,7 @@ Edit [`../pi/config.json`](../pi/config.json):
 {
   "veytrix_api_key":  "acai_…  (from the dashboard → API Keys, or npm run seed)",
   "veytrix_agent_id": "…       (from the dashboard → Alert Message, or seed)",
-  "veytrix_base_url": "https://iskcon-aicalls.fly.dev",
+  "veytrix_base_url": "https://iskcon-temple-aicalling.fly.dev",
   "from_number":      "+9180XXXXXXXX  (your Plivo number)",
   "active_hours_enabled": true,
   "active_start": "09:00",

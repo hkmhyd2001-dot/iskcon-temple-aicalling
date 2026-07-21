@@ -1,6 +1,6 @@
 # API Reference — ISKCON AI Calls
 
-Base URL: `https://iskcon-aicalls.fly.dev/api` (or `http://localhost:3000/api` in dev).
+Base URL: `https://iskcon-temple-aicalling.fly.dev/api` (or `http://localhost:3000/api` in dev).
 
 ## Authentication
 

@@ -65,7 +65,7 @@ Then log in to the dashboard with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
 ## The one endpoint that matters
 
 ```bash
-curl -X POST https://iskcon-aicalls.fly.dev/api/alert \
+curl -X POST https://iskcon-temple-aicalling.fly.dev/api/alert \
   -H "Authorization: Bearer acai_xxx" \
   -H "Content-Type: application/json" \
   -d '{

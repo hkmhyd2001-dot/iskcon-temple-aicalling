@@ -45,11 +45,11 @@ fly secrets set \
   PLIVO_AUTH_ID="…" PLIVO_AUTH_TOKEN="…" PLIVO_DEFAULT_NUMBER="+9180XXXXXXXX" \
   CARTESIA_API_KEY="…" CARTESIA_DEFAULT_VOICE_ID="…" CARTESIA_TTS_MODEL="sonic-2" \
   GEMINI_API_KEY="…" \
-  SERVER_URL="https://iskcon-aicalls.fly.dev" \
+  SERVER_URL="https://iskcon-temple-aicalling.fly.dev" \
   APP_URL="https://your-dashboard.vercel.app"
 fly deploy
 ```
-Health check: `curl https://iskcon-aicalls.fly.dev/api/health`.
+Health check: `curl https://iskcon-temple-aicalling.fly.dev/api/health`.
 
 > `SERVER_URL` **must** be the public https URL — Plivo fetches the answer/audio
 > webhooks from it, and it's used to verify Plivo signatures.
@@ -57,7 +57,7 @@ Health check: `curl https://iskcon-aicalls.fly.dev/api/health`.
 ## 5. Deploy the dashboard to Vercel
 1. Import the repo; set **Root Directory** = `apps/web`.
 2. Build command `npm run build`, output `dist` (already in `vercel.json`).
-3. Env var: `VITE_API_URL = https://iskcon-aicalls.fly.dev/api`.
+3. Env var: `VITE_API_URL = https://iskcon-temple-aicalling.fly.dev/api`.
 4. Deploy → note the URL → set it as `APP_URL` on Fly (`fly secrets set APP_URL=…`).
 
 ## 6. Configure Plivo

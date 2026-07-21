@@ -100,7 +100,7 @@ def call_all_guards():
             log.error("❌ No valid guard numbers configured (all still +91XXXXXXXXXX).")
             return
 
-        base = CONFIG.get("veytrix_base_url", "https://iskcon-aicalls.fly.dev")
+        base = CONFIG.get("veytrix_base_url", "https://iskcon-temple-aicalling.fly.dev")
 
         # Up to 3 attempts. Network/SSL failures get a brand-new connection and
         # a short pause before retrying — one blip must not lose the alert.
@@ -231,7 +231,7 @@ def settings_save():
 
     cfg["veytrix_api_key"]   = f.get("veytrix_api_key", "").strip()
     cfg["veytrix_agent_id"]  = f.get("veytrix_agent_id", "").strip()
-    cfg["veytrix_base_url"]  = f.get("veytrix_base_url", "").strip() or "https://iskcon-aicalls.fly.dev"
+    cfg["veytrix_base_url"]  = f.get("veytrix_base_url", "").strip() or "https://iskcon-temple-aicalling.fly.dev"
     cfg["telephony_provider"] = f.get("telephony_provider", "plivo").strip()
     cfg["from_number"]       = normalize_phone(f.get("from_number", ""))
 
@@ -322,7 +322,7 @@ td input{width:100%}
         <div class="field"><label>Caller Number (From)</label>
           <input name="from_number" value="{{ c.from_number }}" placeholder="+918031149337"></div>
         <div class="field full"><label>Server URL</label>
-          <input name="veytrix_base_url" value="{{ c.veytrix_base_url }}" placeholder="https://iskcon-aicalls.fly.dev"></div>
+          <input name="veytrix_base_url" value="{{ c.veytrix_base_url }}" placeholder="https://iskcon-temple-aicalling.fly.dev"></div>
       </div>
     </div>
 
