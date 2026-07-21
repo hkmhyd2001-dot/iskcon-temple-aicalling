@@ -26,13 +26,20 @@ export default function SettingsPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editLabel, setEditLabel] = useState("");
 
-  // Seed the form from saved values: non-secret fields show their current
-  // value; secret fields stay blank (leave blank = keep the saved secret).
+  // Seed the form from saved values. Secret fields show the MASK (e.g.
+  // "••••••Now123") inside the box; non-secret fields show their real value.
   const seed = (d: SettingsResp) => {
-    setPlivo({ authId: d.providers.plivo.authId ?? "", authToken: "", defaultNumber: d.providers.plivo.defaultNumber ?? "" });
-    setCartesia({ apiKey: "", voiceId: d.providers.cartesia.voiceId ?? "", model: d.providers.cartesia.model ?? "sonic-2" });
-    setGemini({ apiKey: "", model: d.providers.gemini.model ?? "gemini-2.5-flash" });
+    setPlivo({ authId: d.providers.plivo.authId ?? "", authToken: d.providers.plivo.tokenMask ?? "", defaultNumber: d.providers.plivo.defaultNumber ?? "" });
+    setCartesia({ apiKey: d.providers.cartesia.keyMask ?? "", voiceId: d.providers.cartesia.voiceId ?? "", model: d.providers.cartesia.model ?? "sonic-2" });
+    setGemini({ apiKey: d.providers.gemini.keyMask ?? "", model: d.providers.gemini.model ?? "gemini-2.5-flash" });
   };
+
+  // A secret still equal to its mask (or blank) means "unchanged" → send "" so
+  // the backend keeps the stored value instead of overwriting with the mask.
+  const secretOut = (value: string, mask: string | null) => (!value || value === (mask ?? "") ? "" : value);
+  // Click a masked field to clear it for editing; leave it empty → restore mask.
+  const focusMask = (value: string, mask: string | null) => (value === (mask ?? "") ? "" : value);
+  const blurMask = (value: string, mask: string | null) => (value === "" ? mask ?? "" : value);
 
   const load = async () => {
     const d = await api.get<SettingsResp>("/settings");
@@ -112,14 +119,16 @@ export default function SettingsPage() {
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Auth Token</label>
-            <input name="pl_tok" type="password" autoComplete="new-password" value={plivo.authToken} onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder={p.plivo.tokenMask ? "blank = keep saved" : "auth token"} />
-            {p.plivo.tokenMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.plivo.tokenMask}</div>}
+            <input name="pl_tok" type="text" autoComplete="off" className="mono" value={plivo.authToken}
+              onFocus={() => setPlivo({ ...plivo, authToken: focusMask(plivo.authToken, p.plivo.tokenMask) })}
+              onBlur={() => setPlivo({ ...plivo, authToken: blurMask(plivo.authToken, p.plivo.tokenMask) })}
+              onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder="auth token" />
           </div>
           <div style={{ minWidth: 170 }}>
             <label style={{ marginTop: 0 }}>Default number</label>
             <input name="pl_num" autoComplete="off" value={plivo.defaultNumber} onChange={(e) => setPlivo({ ...plivo, defaultNumber: e.target.value })} placeholder="+9180XXXXXXXX" />
           </div>
-          <button className="btn" onClick={() => saveCred("plivo", plivo)}>Save</button>
+          <button className="btn" onClick={() => saveCred("plivo", { authId: plivo.authId, authToken: secretOut(plivo.authToken, p.plivo.tokenMask), defaultNumber: plivo.defaultNumber })}>Save</button>
           {p.plivo.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("plivo")}>Remove</button>}
         </div>
       </div>
@@ -132,8 +141,10 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input name="ca_key" type="password" autoComplete="new-password" value={cartesia.apiKey} onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder={p.cartesia.keyMask ? "blank = keep saved" : "sk_car_••••"} />
-            {p.cartesia.keyMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.cartesia.keyMask}</div>}
+            <input name="ca_key" type="text" autoComplete="off" className="mono" value={cartesia.apiKey}
+              onFocus={() => setCartesia({ ...cartesia, apiKey: focusMask(cartesia.apiKey, p.cartesia.keyMask) })}
+              onBlur={() => setCartesia({ ...cartesia, apiKey: blurMask(cartesia.apiKey, p.cartesia.keyMask) })}
+              onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder="sk_car_••••" />
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Default voice ID</label>
@@ -143,7 +154,7 @@ export default function SettingsPage() {
             <label style={{ marginTop: 0 }}>Model</label>
             <input name="ca_model" autoComplete="off" value={cartesia.model} onChange={(e) => setCartesia({ ...cartesia, model: e.target.value })} placeholder="sonic-2" />
           </div>
-          <button className="btn" onClick={() => saveCred("cartesia", cartesia)}>Save</button>
+          <button className="btn" onClick={() => saveCred("cartesia", { apiKey: secretOut(cartesia.apiKey, p.cartesia.keyMask), voiceId: cartesia.voiceId, model: cartesia.model })}>Save</button>
           {p.cartesia.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("cartesia")}>Remove</button>}
         </div>
       </div>
@@ -156,14 +167,16 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input name="ge_key" type="password" autoComplete="new-password" value={gemini.apiKey} onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder={p.gemini.keyMask ? "blank = keep saved" : "AIza••••"} />
-            {p.gemini.keyMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.gemini.keyMask}</div>}
+            <input name="ge_key" type="text" autoComplete="off" className="mono" value={gemini.apiKey}
+              onFocus={() => setGemini({ ...gemini, apiKey: focusMask(gemini.apiKey, p.gemini.keyMask) })}
+              onBlur={() => setGemini({ ...gemini, apiKey: blurMask(gemini.apiKey, p.gemini.keyMask) })}
+              onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder="AIza••••" />
           </div>
           <div style={{ minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Model</label>
             <input name="ge_model" autoComplete="off" value={gemini.model} onChange={(e) => setGemini({ ...gemini, model: e.target.value })} placeholder="gemini-2.5-flash" />
           </div>
-          <button className="btn" onClick={() => saveCred("gemini", gemini)}>Save</button>
+          <button className="btn" onClick={() => saveCred("gemini", { apiKey: secretOut(gemini.apiKey, p.gemini.keyMask), model: gemini.model })}>Save</button>
           {p.gemini.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("gemini")}>Remove</button>}
         </div>
       </div>
