@@ -70,6 +70,9 @@ model Agent {
   // The exact words spoken to every guard.
   message           String
   language          String   @default("en") // en | hi | te | ta
+  // Call type: one_way (play + hangup) | ack (press any key to confirm receipt)
+  // | snooze (press 0-9 to pause alerts).
+  callMode          String   @default("snooze")
   telephonyProvider String   @default("plivo")
   fromNumber        String?  // caller ID override; else falls back to org/env default
   voiceId           String?  // Cartesia voice UUID; else env default
@@ -112,8 +115,10 @@ model Call {
   organization      Organization @relation(fields: [organizationId], references: [id])
   agentId           String
   agent             Agent    @relation(fields: [agentId], references: [id])
+  agentName         String?  // denormalized at creation, so history shows it
   targetName        String?
   targetPhone       String
+  acknowledgedAt    DateTime? // set when a guard presses a key on an "ack" call
   fromNumber        String?
   telephonyProvider String   @default("plivo")
   status            String   @default("queued") // queued | ringing | answered | completed | failed | no_answer
@@ -143,6 +148,21 @@ model AudioCache {
   createdAt DateTime @default(now())
 
   @@index([agentId])
+}
+
+// Per-org provider credentials, entered in the dashboard and stored ENCRYPTED
+// (AES-256-GCM via ENCRYPTION_KEY). Read first, with env vars as fallback — so
+// the client can manage Plivo/Cartesia/Gemini keys from the UI, not just Fly.
+model ProviderCredential {
+  id             String   @id @default(uuid()) @map("_id")
+  organizationId String
+  provider       String   // plivo | cartesia | gemini
+  encData        String   // encrypted JSON blob of the provider's fields
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
 }
 
 // Lightweight audit trail (alert fired, settings changed, key minted…).

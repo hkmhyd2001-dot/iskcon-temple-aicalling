@@ -3,17 +3,24 @@ import { env } from "../../config/env.js";
 
 // OPTIONAL. Gemini is never used at call time (announcement-only). It exists
 // purely as a dashboard helper: compose or translate the fixed alert message.
+// Credentials come from the dashboard (DB) or env — passed in by the caller.
 export class GeminiService {
+  constructor(private readonly apiKey?: string, private readonly model?: string) {}
+
+  private key(): string | undefined {
+    return this.apiKey || env.GEMINI_API_KEY;
+  }
+
   get configured(): boolean {
-    return Boolean(env.GEMINI_API_KEY);
+    return Boolean(this.key());
   }
 
   private client(): GoogleGenAI {
-    if (!env.GEMINI_API_KEY) throw new Error("Gemini is not configured (GEMINI_API_KEY).");
-    return new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+    const key = this.key();
+    if (!key) throw new Error("Gemini is not configured.");
+    return new GoogleGenAI({ apiKey: key });
   }
 
-  // Generate/refine an alert message from a short instruction.
   async composeAlert(instruction: string, language = "en"): Promise<string> {
     const langName =
       { en: "English", hi: "Hindi", te: "Telugu", ta: "Tamil" }[language] ?? "English";
@@ -23,7 +30,7 @@ export class GeminiService {
       `2 sentences max, no preamble, no quotes. Instruction: ${instruction}`;
 
     const res = await this.client().models.generateContent({
-      model: env.GEMINI_MODEL,
+      model: this.model || env.GEMINI_MODEL,
       contents: prompt
     });
     return (res.text ?? "").trim();

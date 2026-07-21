@@ -81,15 +81,15 @@ export default function TeamPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="person@iskcon.local" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="off" placeholder="person@iskcon.local" />
           </div>
           <div style={{ flex: 1, minWidth: 140 }}>
             <label style={{ marginTop: 0 }}>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="Full name" />
           </div>
           <div style={{ flex: 1, minWidth: 140 }}>
             <label style={{ marginTop: 0 }}>Password</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="min 6 chars" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="min 6 chars" />
           </div>
           <div style={{ minWidth: 130 }}>
             <label style={{ marginTop: 0 }}>Role</label>

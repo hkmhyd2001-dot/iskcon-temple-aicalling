@@ -5,7 +5,10 @@ import { authenticate, requireUser } from "../middleware/auth.middleware.js";
 import { normalizePhone } from "../utils/phone.js";
 import { getOrRenderAgentAudio } from "../services/audio/audioStore.js";
 import { GeminiService } from "../services/llm/GeminiService.js";
+import { resolveCartesia, resolveGemini } from "../services/credentials/providerCredentials.js";
 import { audit } from "../utils/audit.js";
+
+const CALL_MODES = ["one_way", "ack", "snooze"];
 
 export const agentRoutes = Router();
 
@@ -41,6 +44,7 @@ agentRoutes.post(
         name,
         message,
         language: String(b.language ?? "en"),
+        callMode: CALL_MODES.includes(b.callMode) ? b.callMode : "snooze",
         fromNumber: normalizePhone(b.fromNumber) || null,
         voiceId: b.voiceId ? String(b.voiceId) : null,
         ttsModel: b.ttsModel ? String(b.ttsModel) : null,
@@ -68,6 +72,7 @@ agentRoutes.patch(
     if (typeof b.name === "string") data.name = b.name.trim();
     if (typeof b.message === "string") data.message = b.message.trim();
     if (typeof b.language === "string") data.language = b.language;
+    if (typeof b.callMode === "string" && CALL_MODES.includes(b.callMode)) data.callMode = b.callMode;
     if (b.fromNumber !== undefined) data.fromNumber = normalizePhone(b.fromNumber) || null;
     if (b.voiceId !== undefined) data.voiceId = b.voiceId ? String(b.voiceId) : null;
     if (b.ttsModel !== undefined) data.ttsModel = b.ttsModel ? String(b.ttsModel) : null;
@@ -95,7 +100,12 @@ agentRoutes.post(
       res.status(404).json({ message: "Agent not found." });
       return;
     }
-    const audio = await getOrRenderAgentAudio(agent);
+    const cartesia = await resolveCartesia(req.auth!.organizationId);
+    if (!cartesia.apiKey) {
+      res.status(400).json({ message: "Cartesia is not configured. Add its API key in Settings." });
+      return;
+    }
+    const audio = await getOrRenderAgentAudio(agent, cartesia);
     res.setHeader("Content-Type", audio.mimeType);
     res.setHeader("Cache-Control", "no-store");
     res.send(audio.data);
@@ -107,9 +117,10 @@ agentRoutes.post(
   "/compose",
   requireUser("admin"),
   asyncHandler(async (req, res) => {
-    const gemini = new GeminiService();
+    const g = await resolveGemini(req.auth!.organizationId);
+    const gemini = new GeminiService(g.apiKey, g.model);
     if (!gemini.configured) {
-      res.status(400).json({ message: "Gemini is not configured (GEMINI_API_KEY)." });
+      res.status(400).json({ message: "Gemini is not configured. Add its API key in Settings." });
       return;
     }
     const instruction = String(req.body?.instruction ?? "").trim();

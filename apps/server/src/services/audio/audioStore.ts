@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../db/prisma.js";
-import { env } from "../../config/env.js";
 import { CartesiaTtsService } from "../tts/CartesiaTtsService.js";
+import type { CartesiaCreds } from "../credentials/providerCredentials.js";
 
 const tts = new CartesiaTtsService();
 
@@ -29,15 +29,18 @@ export interface RenderedAudio {
 // Returns the cached WAV for an agent, rendering + storing it on first use.
 // Called lazily by the Plivo answer webhook (so the very first alert renders
 // once, then every later call replays instantly).
-export async function getOrRenderAgentAudio(agent: {
-  id: string;
-  message: string;
-  voiceId: string | null;
-  ttsModel: string | null;
-  language: string;
-}): Promise<RenderedAudio> {
-  const voiceId = agent.voiceId || env.CARTESIA_DEFAULT_VOICE_ID || "";
-  const model = agent.ttsModel || env.CARTESIA_TTS_MODEL;
+export async function getOrRenderAgentAudio(
+  agent: {
+    id: string;
+    message: string;
+    voiceId: string | null;
+    ttsModel: string | null;
+    language: string;
+  },
+  cartesia: CartesiaCreds
+): Promise<RenderedAudio> {
+  const voiceId = agent.voiceId || cartesia.voiceId || "";
+  const model = agent.ttsModel || cartesia.model || "sonic-2";
   const language = agent.language || "en";
   const key = audioCacheKey({ message: agent.message, voiceId, model, language });
 
@@ -46,7 +49,12 @@ export async function getOrRenderAgentAudio(agent: {
     return { cacheKey: key, data: Buffer.from(existing.data), mimeType: existing.mimeType };
   }
 
-  const wav = await tts.synthesizeWav(agent.message, { voiceId, modelId: model, language });
+  const wav = await tts.synthesizeWav(agent.message, {
+    apiKey: cartesia.apiKey,
+    voiceId,
+    modelId: model,
+    language
+  });
 
   // Store bytes in Mongo. upsert guards against a race where two calls render
   // the same new key simultaneously.

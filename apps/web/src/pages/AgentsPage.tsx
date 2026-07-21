@@ -9,6 +9,7 @@ interface Agent {
   fromNumber?: string | null;
   voiceId?: string | null;
   isActive: boolean;
+  callMode: string;
   suppressedUntil?: string | null;
 }
 interface Voice {
@@ -81,6 +82,7 @@ export default function AgentsPage() {
         name: selected.name,
         message: selected.message,
         language: selected.language,
+        callMode: selected.callMode,
         fromNumber: selected.fromNumber ?? "",
         voiceId: selected.voiceId ?? "",
         isActive: selected.isActive
@@ -213,6 +215,19 @@ export default function AgentsPage() {
                 placeholder="+9180XXXXXXXX"
               />
             </div>
+          </div>
+
+          {/* Call type */}
+          <label>Call type</label>
+          <select value={selected.callMode} onChange={(e) => patch({ callMode: e.target.value })}>
+            <option value="one_way">One-way announcement — play the message and hang up</option>
+            <option value="ack">Announcement + acknowledge — guard presses any key to confirm receipt</option>
+            <option value="snooze">Announcement + keypad snooze — guard presses 0–9 to pause alerts</option>
+          </select>
+          <div className="page-sub" style={{ margin: "5px 0 0" }}>
+            {selected.callMode === "one_way" && "Simple one-way alert. No keypad input."}
+            {selected.callMode === "ack" && "After the message, the guard presses any key; the call is marked acknowledged."}
+            {selected.callMode === "snooze" && "After the message: 0 = 30 min, 1–9 = that many hours of paused alerts."}
           </div>
 
           {/* Cartesia voice picker */}

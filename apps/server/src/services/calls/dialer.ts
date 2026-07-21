@@ -1,6 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { PlivoService } from "../telephony/PlivoService.js";
 import { isE164 } from "../../utils/phone.js";
+import type { PlivoCreds } from "../credentials/providerCredentials.js";
 
 export interface DialTarget {
   name: string;
@@ -20,12 +21,14 @@ export interface DialResult {
 export async function dialAll(params: {
   organizationId: string;
   agentId: string;
+  agentName?: string;
   fromNumber: string;
   targets: DialTarget[];
   source: "alert" | "test" | "dashboard";
+  plivoCreds: PlivoCreds;
 }): Promise<DialResult[]> {
-  const { organizationId, agentId, fromNumber, targets, source } = params;
-  const plivo = new PlivoService();
+  const { organizationId, agentId, agentName, fromNumber, targets, source, plivoCreds } = params;
+  const plivo = new PlivoService(plivoCreds.authId, plivoCreds.authToken);
 
   const results = await Promise.all(
     targets.map(async (t): Promise<DialResult> => {
@@ -38,6 +41,7 @@ export async function dialAll(params: {
         data: {
           organizationId,
           agentId,
+          agentName: agentName ?? null,
           targetName: t.name || "Alert Recipient",
           targetPhone: t.phone,
           fromNumber,

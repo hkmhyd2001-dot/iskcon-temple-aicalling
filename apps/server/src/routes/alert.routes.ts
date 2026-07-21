@@ -4,7 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 import { normalizePhone } from "../utils/phone.js";
 import { dialAll, type DialTarget } from "../services/calls/dialer.js";
-import { env } from "../config/env.js";
+import { resolvePlivo } from "../services/credentials/providerCredentials.js";
 import { audit } from "../utils/audit.js";
 
 export const alertRoutes = Router();
@@ -88,7 +88,10 @@ alertRoutes.post(
       return;
     }
 
-    // Resolve caller ID: explicit override → agent → org default → env default.
+    // Resolve Plivo credentials (dashboard-stored first, env fallback).
+    const plivoCreds = await resolvePlivo(orgId);
+
+    // Resolve caller ID: explicit override → agent → org default number → Plivo default.
     let fromNumber = normalizePhone(typeof body.fromNumber === "string" ? body.fromNumber : "");
     if (!fromNumber) fromNumber = normalizePhone(agent.fromNumber ?? "");
     if (!fromNumber) {
@@ -98,7 +101,7 @@ alertRoutes.post(
       });
       fromNumber = normalizePhone(dflt?.phoneNumber ?? "");
     }
-    if (!fromNumber) fromNumber = normalizePhone(env.PLIVO_DEFAULT_NUMBER ?? "");
+    if (!fromNumber) fromNumber = normalizePhone(plivoCreds.defaultNumber ?? "");
     if (!fromNumber) {
       res.status(400).json({
         message: "No caller number configured. Set a Plivo number in Settings or pass fromNumber."
@@ -109,9 +112,11 @@ alertRoutes.post(
     const results = await dialAll({
       organizationId: orgId,
       agentId: agent.id,
+      agentName: agent.name,
       fromNumber,
       targets,
-      source: "alert"
+      source: "alert",
+      plivoCreds
     });
 
     const dialed = results.filter((r) => r.status === "queued");

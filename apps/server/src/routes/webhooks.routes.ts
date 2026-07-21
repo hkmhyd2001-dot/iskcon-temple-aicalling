@@ -1,32 +1,35 @@
 import { Router } from "express";
+import type { Response } from "express";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { env } from "../config/env.js";
 import { getOrRenderAgentAudio, getAudioByKey } from "../services/audio/audioStore.js";
 import { verifyPlivoSignature } from "../services/telephony/plivoSignature.js";
+import { resolveCartesia } from "../services/credentials/providerCredentials.js";
 import { audit } from "../utils/audit.js";
+
+export const webhookRoutes = Router();
 
 // DTMF snooze map: 0 = 30 minutes, every other digit = that many hours.
 const SNOOZE_HOURS: Record<string, number> = {
   "0": 0.5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9
 };
 function snoozeLabel(hours: number): string {
-  if (hours < 1) return "thirty minutes";
-  return `${hours} hour${hours > 1 ? "s" : ""}`;
+  return hours < 1 ? "thirty minutes" : `${hours} hour${hours > 1 ? "s" : ""}`;
 }
 const SNOOZE_PROMPT =
   "To pause further alerts, press 0 for thirty minutes, or press a number from 1 to 9 for that many hours. Otherwise you may hang up.";
+const ACK_PROMPT = "Please press any key to confirm you have received this alert.";
 
-export const webhookRoutes = Router();
-
-function xml(res: import("express").Response, body: string): void {
+function xml(res: Response, body: string): void {
   res.setHeader("Content-Type", "text/xml");
   res.send(`<?xml version="1.0" encoding="UTF-8"?>\n${body}`);
 }
 
 // ─── GET /api/webhooks/plivo/answer/:callId ──────────────────────────────────
-// Plivo fetches this when the guard picks up. We render (once) + cache the alert
-// audio and return Plivo XML that PLAYS it twice for a security alert.
+// Plivo fetches this when the guard picks up. Plays the alert, then — depending
+// on the agent's call type — either hangs up (one-way), asks for an
+// acknowledgement, or offers the keypad snooze.
 webhookRoutes.get(
   "/plivo/answer/:callId",
   asyncHandler(async (req, res) => {
@@ -40,7 +43,6 @@ webhookRoutes.get(
       xml(res, `<Response><Speak>Alert.</Speak></Response>`);
       return;
     }
-
     const agent = await prisma.agent.findUnique({ where: { id: call.agentId } });
     if (!agent) {
       xml(res, `<Response><Speak>Security alert. Please check the entrance immediately.</Speak></Response>`);
@@ -49,47 +51,93 @@ webhookRoutes.get(
 
     await prisma.call.update({ where: { id: call.id }, data: { status: "answered" } }).catch(() => undefined);
 
-    // After the message, gather one keypad digit so a guard can snooze further
-    // alerts (0=30min, 1-9=hours). If no key is pressed, the call just ends.
-    const gatherUrl = `${env.SERVER_URL}/api/webhooks/plivo/gather/${call.id}`;
-    const getDigitsOpen =
-      `<GetDigits action="${gatherUrl}" method="POST" numDigits="1" timeout="10" retries="1" validDigits="0123456789">`;
-
+    // Render (once) + cache the alert audio, or fall back to Plivo <Speak>.
+    let messageXml: string;
     try {
-      const audio = await getOrRenderAgentAudio(agent);
+      const cartesia = await resolveCartesia(call.organizationId);
+      const audio = await getOrRenderAgentAudio(agent, cartesia);
       const audioUrl = `${env.SERVER_URL}/api/webhooks/audio/${audio.cacheKey}.wav`;
-      // Play twice with a short gap, then the snooze options — all inside
-      // GetDigits so a press at any point is captured.
-      xml(
-        res,
-        `<Response>` +
-          getDigitsOpen +
-            `<Play>${audioUrl}</Play><Wait length="1"/><Play>${audioUrl}</Play>` +
-            `<Speak>${SNOOZE_PROMPT}</Speak>` +
-          `</GetDigits>` +
-          `<Speak>No option selected. Goodbye.</Speak>` +
-        `</Response>`
-      );
+      messageXml = `<Play>${audioUrl}</Play><Wait length="1"/><Play>${audioUrl}</Play>`;
     } catch (err) {
-      // TTS failed → fall back to Plivo's built-in <Speak> so the alert still lands.
       console.error("[webhook] audio render failed, falling back to Speak:", (err as Error).message);
       const safe = agent.message.replace(/[<&>]/g, " ");
-      xml(
-        res,
-        `<Response>` +
-          getDigitsOpen +
-            `<Speak>${safe}</Speak><Wait length="1"/><Speak>${safe}</Speak>` +
-            `<Speak>${SNOOZE_PROMPT}</Speak>` +
-          `</GetDigits>` +
-          `<Speak>No option selected. Goodbye.</Speak>` +
-        `</Response>`
-      );
+      messageXml = `<Speak>${safe}</Speak><Wait length="1"/><Speak>${safe}</Speak>`;
     }
+
+    const mode = agent.callMode || "snooze";
+
+    // One-way announcement — no keypad input.
+    if (mode === "one_way") {
+      xml(res, `<Response>${messageXml}</Response>`);
+      return;
+    }
+
+    // Acknowledge / snooze — gather a single digit.
+    const gatherUrl = `${env.SERVER_URL}/api/webhooks/plivo/gather/${call.id}`;
+    const prompt = mode === "ack" ? ACK_PROMPT : SNOOZE_PROMPT;
+    const validDigits = mode === "ack" ? "0123456789*#" : "0123456789";
+    const noInput = mode === "ack" ? "No confirmation received. Goodbye." : "No option selected. Goodbye.";
+    xml(
+      res,
+      `<Response>` +
+        `<GetDigits action="${gatherUrl}" method="POST" numDigits="1" timeout="10" retries="1" validDigits="${validDigits}">` +
+          messageXml +
+          `<Speak>${prompt}</Speak>` +
+        `</GetDigits>` +
+        `<Speak>${noInput}</Speak>` +
+      `</Response>`
+    );
+  })
+);
+
+// ─── POST /api/webhooks/plivo/gather/:callId ─────────────────────────────────
+// The guard pressed a key. For an "ack" agent, record the acknowledgement; for
+// a "snooze" agent, pause further alerts for that agent.
+webhookRoutes.post(
+  "/plivo/gather/:callId",
+  asyncHandler(async (req, res) => {
+    if (!verifyPlivoSignature(req)) {
+      res.status(403).send("Invalid signature.");
+      return;
+    }
+
+    const digit = String((req.body?.Digits ?? "") as string).trim();
+    const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
+    if (!call) {
+      xml(res, `<Response><Speak>Goodbye.</Speak><Hangup/></Response>`);
+      return;
+    }
+    const agent = await prisma.agent.findUnique({ where: { id: call.agentId } });
+    const mode = agent?.callMode || "snooze";
+
+    if (mode === "ack") {
+      await prisma.call.update({ where: { id: call.id }, data: { acknowledgedAt: new Date() } }).catch(() => undefined);
+      void audit(call.organizationId, "alert.acknowledged", `Guard acknowledged the alert (key ${digit}).`, {
+        agentId: call.agentId,
+        callId: call.id
+      });
+      xml(res, `<Response><Speak>Thank you. Your acknowledgement has been recorded. Goodbye.</Speak><Hangup/></Response>`);
+      return;
+    }
+
+    const hours = SNOOZE_HOURS[digit];
+    if (hours === undefined) {
+      xml(res, `<Response><Speak>No valid option selected. Goodbye.</Speak><Hangup/></Response>`);
+      return;
+    }
+    const until = new Date(Date.now() + hours * 3600 * 1000);
+    await prisma.agent.update({ where: { id: call.agentId }, data: { suppressedUntil: until } }).catch(() => undefined);
+    const label = snoozeLabel(hours);
+    void audit(call.organizationId, "alert.snoozed", `Alerts paused for ${label} via keypad (digit ${digit}).`, {
+      agentId: call.agentId,
+      digit,
+      until: until.toISOString()
+    });
+    xml(res, `<Response><Speak>Alerts have been paused for ${label}. Goodbye.</Speak><Hangup/></Response>`);
   })
 );
 
 // ─── POST /api/webhooks/plivo/status/:callId ─────────────────────────────────
-// Plivo posts terminal status here (hangup_url). Records outcome + duration.
 webhookRoutes.post(
   "/plivo/status/:callId",
   asyncHandler(async (req, res) => {
@@ -103,7 +151,6 @@ webhookRoutes.post(
     const durationRaw = b.Duration ?? b.BillDuration;
     const duration = durationRaw != null ? parseInt(String(durationRaw), 10) : undefined;
 
-    // Map Plivo status → our vocabulary.
     const map: Record<string, string> = {
       completed: "completed",
       answered: "completed",
@@ -129,46 +176,9 @@ webhookRoutes.post(
   })
 );
 
-// ─── POST /api/webhooks/plivo/gather/:callId ─────────────────────────────────
-// The guard pressed a keypad digit during the alert call. Map it to a snooze
-// window and pause further alerts for THIS agent until then.
-webhookRoutes.post(
-  "/plivo/gather/:callId",
-  asyncHandler(async (req, res) => {
-    if (!verifyPlivoSignature(req)) {
-      res.status(403).send("Invalid signature.");
-      return;
-    }
-
-    const digit = String((req.body?.Digits ?? "") as string).trim();
-    const hours = SNOOZE_HOURS[digit];
-    const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
-
-    if (!call || hours === undefined) {
-      xml(res, `<Response><Speak>No valid option selected. Goodbye.</Speak><Hangup/></Response>`);
-      return;
-    }
-
-    const until = new Date(Date.now() + hours * 3600 * 1000);
-    await prisma.agent
-      .update({ where: { id: call.agentId }, data: { suppressedUntil: until } })
-      .catch(() => undefined);
-
-    const label = snoozeLabel(hours);
-    void audit(call.organizationId, "alert.snoozed", `Alerts paused for ${label} via keypad (digit ${digit}).`, {
-      agentId: call.agentId,
-      digit,
-      until: until.toISOString()
-    });
-
-    xml(res, `<Response><Speak>Alerts have been paused for ${label}. Goodbye.</Speak><Hangup/></Response>`);
-  })
-);
-
 // ─── GET /api/webhooks/audio/:cacheKey.wav ───────────────────────────────────
-// Serves the cached WAV to Plivo's <Play>. PUBLIC (no auth): Plivo can't send a
-// bearer token, and the key is an unguessable sha256. Supports HTTP Range so
-// Plivo's ranged fetch never gets a truncated/duration-0 file.
+// Serves the cached WAV to Plivo's <Play>. PUBLIC (unguessable sha256 key),
+// with HTTP Range support so Plivo's ranged fetch is never truncated.
 webhookRoutes.get(
   "/audio/:cacheKey.wav",
   asyncHandler(async (req, res) => {
