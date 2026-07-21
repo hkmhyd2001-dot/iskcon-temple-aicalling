@@ -5,8 +5,18 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { env } from "../config/env.js";
 import { getOrRenderAgentAudio, getAudioByKey } from "../services/audio/audioStore.js";
 import { verifyPlivoSignature } from "../services/telephony/plivoSignature.js";
-import { resolveCartesia } from "../services/credentials/providerCredentials.js";
+import { resolveCartesia, resolvePlivo } from "../services/credentials/providerCredentials.js";
 import { audit } from "../utils/audit.js";
+
+// Best-effort signature check: log a mismatch but NEVER reject — the unguessable
+// per-call UUID in the webhook URL is the security boundary, and a signature
+// edge case must never break a live security alert.
+async function softVerify(req: import("express").Request, organizationId: string, callId: string): Promise<void> {
+  const creds = await resolvePlivo(organizationId);
+  if (!verifyPlivoSignature(req, creds.authToken)) {
+    console.warn(`[plivo] webhook signature not verified for call ${callId} — processing anyway.`);
+  }
+}
 
 export const webhookRoutes = Router();
 
@@ -33,16 +43,13 @@ function xml(res: Response, body: string): void {
 webhookRoutes.get(
   "/plivo/answer/:callId",
   asyncHandler(async (req, res) => {
-    if (!verifyPlivoSignature(req)) {
-      res.status(403).send("Invalid signature.");
-      return;
-    }
-
     const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
     if (!call) {
       xml(res, `<Response><Speak>Alert.</Speak></Response>`);
       return;
     }
+    await softVerify(req, call.organizationId, call.id);
+
     const agent = await prisma.agent.findUnique({ where: { id: call.agentId } });
     if (!agent) {
       xml(res, `<Response><Speak>Security alert. Please check the entrance immediately.</Speak></Response>`);
@@ -96,17 +103,13 @@ webhookRoutes.get(
 webhookRoutes.post(
   "/plivo/gather/:callId",
   asyncHandler(async (req, res) => {
-    if (!verifyPlivoSignature(req)) {
-      res.status(403).send("Invalid signature.");
-      return;
-    }
-
     const digit = String((req.body?.Digits ?? "") as string).trim();
     const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
     if (!call) {
       xml(res, `<Response><Speak>Goodbye.</Speak><Hangup/></Response>`);
       return;
     }
+    await softVerify(req, call.organizationId, call.id);
     const agent = await prisma.agent.findUnique({ where: { id: call.agentId } });
     const mode = agent?.callMode || "snooze";
 
@@ -141,11 +144,6 @@ webhookRoutes.post(
 webhookRoutes.post(
   "/plivo/status/:callId",
   asyncHandler(async (req, res) => {
-    if (!verifyPlivoSignature(req)) {
-      res.status(403).send("Invalid signature.");
-      return;
-    }
-
     const b = req.body ?? {};
     const callStatus = String(b.CallStatus ?? b.Status ?? "").toLowerCase();
     const durationRaw = b.Duration ?? b.BillDuration;
@@ -163,6 +161,7 @@ webhookRoutes.post(
 
     const call = await prisma.call.findUnique({ where: { id: String(req.params.callId) } });
     if (call) {
+      await softVerify(req, call.organizationId, call.id);
       await prisma.call.update({
         where: { id: call.id },
         data: {

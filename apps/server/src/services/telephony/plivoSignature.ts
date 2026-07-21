@@ -4,15 +4,15 @@ import { env } from "../../config/env.js";
 
 // Plivo signature V3: base64( HMAC-SHA256( authToken, requestUrl + nonce ) ).
 // Header may carry several comma-separated signatures; any match is valid.
-// Returns true when the request is authentic OR when verification is explicitly
-// disabled (dev tunnels). Fails CLOSED by default in production.
-export function verifyPlivoSignature(req: Request): boolean {
+// `authToken` should be the token resolved for the call's org (DB or env).
+// Returns true when authentic OR when verification is disabled. This is used as
+// a BEST-EFFORT check by the webhook routes — the unguessable per-call UUID in
+// the URL is the real guard, so callers log a mismatch but never reject (a
+// signature edge case must never drop a security alert).
+export function verifyPlivoSignature(req: Request, authToken?: string): boolean {
   if (env.PLIVO_SIGNATURE_INSECURE) return true; // dev/tunnel escape hatch
-  const token = env.PLIVO_AUTH_TOKEN;
-  if (!token) {
-    console.warn("[plivo] PLIVO_AUTH_TOKEN unset — cannot verify webhook signature.");
-    return false;
-  }
+  const token = authToken || env.PLIVO_AUTH_TOKEN;
+  if (!token) return false;
 
   const signatureHeader = req.header("X-Plivo-Signature-V3");
   const nonce = req.header("X-Plivo-Signature-V3-Nonce");

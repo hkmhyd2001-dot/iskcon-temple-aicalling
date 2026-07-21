@@ -32,7 +32,12 @@ export default function DashboardPage() {
     setTestAgentId((prev) => prev || a.agents.find((ag) => ag.isActive)?.id || a.agents[0]?.id || "");
   };
 
-  useEffect(() => { void load().catch((e) => setErr((e as Error).message)); }, []);
+  useEffect(() => {
+    void load().catch((e) => setErr((e as Error).message));
+    // Live refresh so call statuses update on screen as Plivo reports them.
+    const timer = setInterval(() => void load().catch(() => undefined), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const sendTest = async () => {
     setErr(""); setMsg("");

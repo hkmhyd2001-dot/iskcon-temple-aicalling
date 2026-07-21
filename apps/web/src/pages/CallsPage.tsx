@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../stores/authStore";
 
@@ -23,15 +23,22 @@ export default function CallsPage() {
   const [pages, setPages] = useState(1);
   const [err, setErr] = useState("");
 
+  const pageRef = useRef(1);
   const load = async (p: number) => {
     try {
       const res = await api.get<{ calls: Call[]; pages: number }>(`/calls?page=${p}&limit=50`);
       setCalls(res.calls);
       setPages(res.pages);
       setPage(p);
+      pageRef.current = p;
     } catch (e) { setErr((e as Error).message); }
   };
-  useEffect(() => { void load(1); }, []);
+  useEffect(() => {
+    void load(1);
+    // Live refresh of the current page so statuses update as Plivo reports them.
+    const timer = setInterval(() => void load(pageRef.current), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const del = async (id: string) => {
     if (!confirm("Delete this call record?")) return;
