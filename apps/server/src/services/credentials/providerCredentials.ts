@@ -37,6 +37,19 @@ export function invalidateCredCache(orgId: string, provider: Provider): void {
   cache.delete(`${orgId}:${provider}`);
 }
 
+// Uncached read — used before a merge-save so we never overwrite with stale data.
+async function readDbFresh(orgId: string, provider: Provider): Promise<Record<string, string>> {
+  try {
+    const row = await prisma.providerCredential.findUnique({
+      where: { organizationId_provider: { organizationId: orgId, provider } }
+    });
+    if (row) return decryptJson(row.encData);
+  } catch {
+    /* fall through */
+  }
+  return {};
+}
+
 export async function resolvePlivo(orgId: string): Promise<PlivoCreds> {
   const db = await readDb(orgId, "plivo");
   return {
@@ -74,7 +87,10 @@ export async function saveCredentials(
   for (const [k, v] of Object.entries(fields)) {
     if (typeof v === "string" && v.trim()) clean[k] = v.trim();
   }
-  const encData = encryptJson(clean);
+  // MERGE with existing so editing one field (e.g. the number) never wipes the
+  // secret fields left blank by the form.
+  const existing = await readDbFresh(orgId, provider);
+  const encData = encryptJson({ ...existing, ...clean });
   await prisma.providerCredential.upsert({
     where: { organizationId_provider: { organizationId: orgId, provider } },
     update: { encData },
@@ -107,8 +123,11 @@ export async function providerStatus(orgId: string) {
     plivo: {
       configured: Boolean(plivo.authId && plivo.authToken),
       source: plivoDb?.authId ? "dashboard" : plivo.authId ? "env" : "none",
+      // Auth ID is an account identifier, not a secret — safe to show so the
+      // form can display the saved value. The Auth Token is never returned.
+      authId: plivo.authId ?? null,
       defaultNumber: plivo.defaultNumber ?? null,
-      hasAuthId: Boolean(plivo.authId)
+      hasToken: Boolean(plivo.authToken)
     },
     cartesia: {
       configured: Boolean(cartesia.apiKey),

@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 
 interface Num { id: string; phoneNumber: string; label?: string | null; isDefaultOutbound: boolean; }
 interface ProviderStatus {
-  plivo: { configured: boolean; source: string; defaultNumber: string | null; hasAuthId: boolean };
+  plivo: { configured: boolean; source: string; authId: string | null; defaultNumber: string | null; hasToken: boolean };
   cartesia: { configured: boolean; source: string; voiceId: string | null; model: string | null };
   gemini: { configured: boolean; source: string; model: string | null };
 }
@@ -16,37 +16,44 @@ export default function SettingsPage() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
-  // credential form drafts
   const [plivo, setPlivo] = useState({ authId: "", authToken: "", defaultNumber: "" });
   const [cartesia, setCartesia] = useState({ apiKey: "", voiceId: "", model: "sonic-2" });
   const [gemini, setGemini] = useState({ apiKey: "", model: "gemini-2.5-flash" });
 
-  // numbers
   const [phone, setPhone] = useState("");
   const [label, setLabel] = useState("");
   const [editId, setEditId] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editLabel, setEditLabel] = useState("");
 
-  const load = async () => setData(await api.get<SettingsResp>("/settings"));
+  // Seed the form from saved values: non-secret fields show their current
+  // value; secret fields stay blank (leave blank = keep the saved secret).
+  const seed = (d: SettingsResp) => {
+    setPlivo({ authId: d.providers.plivo.authId ?? "", authToken: "", defaultNumber: d.providers.plivo.defaultNumber ?? "" });
+    setCartesia({ apiKey: "", voiceId: d.providers.cartesia.voiceId ?? "", model: d.providers.cartesia.model ?? "sonic-2" });
+    setGemini({ apiKey: "", model: d.providers.gemini.model ?? "gemini-2.5-flash" });
+  };
+
+  const load = async () => {
+    const d = await api.get<SettingsResp>("/settings");
+    setData(d);
+    seed(d);
+  };
   useEffect(() => { void load().catch((e) => setErr((e as Error).message)); }, []);
 
   const saveCred = async (provider: string, body: Record<string, string>) => {
     setErr(""); setOk("");
     try {
-      const res = await api.post<{ providers: ProviderStatus }>(`/settings/credentials/${provider}`, body);
-      setData((d) => (d ? { ...d, providers: res.providers } : d));
+      await api.post(`/settings/credentials/${provider}`, body);
+      await load();
       setOk(`${provider[0].toUpperCase()}${provider.slice(1)} credentials saved.`);
     } catch (e) { setErr((e as Error).message); }
   };
   const clearCred = async (provider: string) => {
     if (!confirm(`Remove saved ${provider} credentials? It will fall back to server env, if set.`)) return;
     setErr(""); setOk("");
-    try {
-      const res = await api.del<{ providers: ProviderStatus }>(`/settings/credentials/${provider}`);
-      setData((d) => (d ? { ...d, providers: res.providers } : d));
-      setOk(`${provider} credentials removed.`);
-    } catch (e) { setErr((e as Error).message); }
+    try { await api.del(`/settings/credentials/${provider}`); await load(); setOk(`${provider} credentials removed.`); }
+    catch (e) { setErr((e as Error).message); }
   };
 
   const addNumber = async () => {
@@ -79,10 +86,16 @@ export default function SettingsPage() {
 
   return (
     <>
+      {/* Decoy fields absorb Chrome's login autofill so real credential inputs stay clean. */}
+      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", top: 0, height: 0, width: 0, overflow: "hidden" }}>
+        <input type="text" name="username" autoComplete="username" tabIndex={-1} />
+        <input type="password" name="password" autoComplete="current-password" tabIndex={-1} />
+      </div>
+
       <div className="page-title">Settings</div>
       <div className="page-sub">
         Enter provider credentials below — they are stored encrypted in the database and take effect immediately.
-        (Server environment variables are used as a fallback.)
+        Leave a secret field blank to keep the saved value. (Server environment variables are used as a fallback.)
       </div>
       {err && <div className="error">{err}</div>}
       {ok && <div className="ok">{ok}</div>}
@@ -95,15 +108,15 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Auth ID</label>
-            <input autoComplete="off" value={plivo.authId} onChange={(e) => setPlivo({ ...plivo, authId: e.target.value })} placeholder={p.plivo.hasAuthId ? "•••••• (saved)" : "MAxxxxxxxxxxxxxxxxxx"} />
+            <input name="pl_acct" autoComplete="off" spellCheck={false} value={plivo.authId} onChange={(e) => setPlivo({ ...plivo, authId: e.target.value })} placeholder="MAxxxxxxxxxxxxxxxxxx" />
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Auth Token</label>
-            <input autoComplete="off" type="password" value={plivo.authToken} onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder="••••••••" />
+            <input name="pl_tok" type="password" autoComplete="new-password" value={plivo.authToken} onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder={p.plivo.hasToken ? "•••• saved (blank = keep)" : "auth token"} />
           </div>
-          <div style={{ minWidth: 160 }}>
+          <div style={{ minWidth: 170 }}>
             <label style={{ marginTop: 0 }}>Default number</label>
-            <input value={plivo.defaultNumber} onChange={(e) => setPlivo({ ...plivo, defaultNumber: e.target.value })} placeholder={p.plivo.defaultNumber ?? "+9180XXXXXXXX"} />
+            <input name="pl_num" autoComplete="off" value={plivo.defaultNumber} onChange={(e) => setPlivo({ ...plivo, defaultNumber: e.target.value })} placeholder="+9180XXXXXXXX" />
           </div>
           <button className="btn" onClick={() => saveCred("plivo", plivo)}>Save</button>
           {p.plivo.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("plivo")}>Remove</button>}
@@ -118,15 +131,15 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input autoComplete="off" type="password" value={cartesia.apiKey} onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder="sk_car_••••" />
+            <input name="ca_key" type="password" autoComplete="new-password" value={cartesia.apiKey} onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder={p.cartesia.configured ? "•••• saved (blank = keep)" : "sk_car_••••"} />
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Default voice ID</label>
-            <input value={cartesia.voiceId} onChange={(e) => setCartesia({ ...cartesia, voiceId: e.target.value })} placeholder={p.cartesia.voiceId ?? "faf0731e-…"} className="mono" />
+            <input name="ca_voice" autoComplete="off" value={cartesia.voiceId} onChange={(e) => setCartesia({ ...cartesia, voiceId: e.target.value })} placeholder="faf0731e-…" className="mono" />
           </div>
           <div style={{ minWidth: 130 }}>
             <label style={{ marginTop: 0 }}>Model</label>
-            <input value={cartesia.model} onChange={(e) => setCartesia({ ...cartesia, model: e.target.value })} placeholder={p.cartesia.model ?? "sonic-2"} />
+            <input name="ca_model" autoComplete="off" value={cartesia.model} onChange={(e) => setCartesia({ ...cartesia, model: e.target.value })} placeholder="sonic-2" />
           </div>
           <button className="btn" onClick={() => saveCred("cartesia", cartesia)}>Save</button>
           {p.cartesia.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("cartesia")}>Remove</button>}
@@ -141,11 +154,11 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input autoComplete="off" type="password" value={gemini.apiKey} onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder="AIza••••" />
+            <input name="ge_key" type="password" autoComplete="new-password" value={gemini.apiKey} onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder={p.gemini.configured ? "•••• saved (blank = keep)" : "AIza••••"} />
           </div>
           <div style={{ minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Model</label>
-            <input value={gemini.model} onChange={(e) => setGemini({ ...gemini, model: e.target.value })} placeholder={p.gemini.model ?? "gemini-2.5-flash"} />
+            <input name="ge_model" autoComplete="off" value={gemini.model} onChange={(e) => setGemini({ ...gemini, model: e.target.value })} placeholder="gemini-2.5-flash" />
           </div>
           <button className="btn" onClick={() => saveCred("gemini", gemini)}>Save</button>
           {p.gemini.source === "dashboard" && <button className="btn danger" onClick={() => clearCred("gemini")}>Remove</button>}
@@ -193,7 +206,7 @@ export default function SettingsPage() {
                 </tr>
               )
             ))}
-            {data.numbers.length === 0 && <tr><td colSpan={4} style={{ color: "var(--ink-3)" }}>No caller numbers added — using the Plivo default.</td></tr>}
+            {data.numbers.length === 0 && <tr><td colSpan={4} style={{ color: "var(--ink-3)" }}>No caller numbers added — the Plivo default number is used.</td></tr>}
           </tbody>
         </table>
       </div>
