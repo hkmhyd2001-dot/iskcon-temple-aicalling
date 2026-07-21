@@ -3,9 +3,9 @@ import { api } from "../lib/api";
 
 interface Num { id: string; phoneNumber: string; label?: string | null; isDefaultOutbound: boolean; }
 interface ProviderStatus {
-  plivo: { configured: boolean; source: string; authId: string | null; defaultNumber: string | null; hasToken: boolean };
-  cartesia: { configured: boolean; source: string; voiceId: string | null; model: string | null };
-  gemini: { configured: boolean; source: string; model: string | null };
+  plivo: { configured: boolean; source: string; authId: string | null; defaultNumber: string | null; tokenMask: string | null };
+  cartesia: { configured: boolean; source: string; voiceId: string | null; model: string | null; keyMask: string | null };
+  gemini: { configured: boolean; source: string; model: string | null; keyMask: string | null };
 }
 interface SettingsResp { providers: ProviderStatus; numbers: Num[]; }
 
@@ -112,7 +112,8 @@ export default function SettingsPage() {
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Auth Token</label>
-            <input name="pl_tok" type="password" autoComplete="new-password" value={plivo.authToken} onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder={p.plivo.hasToken ? "•••• saved (blank = keep)" : "auth token"} />
+            <input name="pl_tok" type="password" autoComplete="new-password" value={plivo.authToken} onChange={(e) => setPlivo({ ...plivo, authToken: e.target.value })} placeholder={p.plivo.tokenMask ? "blank = keep saved" : "auth token"} />
+            {p.plivo.tokenMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.plivo.tokenMask}</div>}
           </div>
           <div style={{ minWidth: 170 }}>
             <label style={{ marginTop: 0 }}>Default number</label>
@@ -131,7 +132,8 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input name="ca_key" type="password" autoComplete="new-password" value={cartesia.apiKey} onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder={p.cartesia.configured ? "•••• saved (blank = keep)" : "sk_car_••••"} />
+            <input name="ca_key" type="password" autoComplete="new-password" value={cartesia.apiKey} onChange={(e) => setCartesia({ ...cartesia, apiKey: e.target.value })} placeholder={p.cartesia.keyMask ? "blank = keep saved" : "sk_car_••••"} />
+            {p.cartesia.keyMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.cartesia.keyMask}</div>}
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Default voice ID</label>
@@ -154,7 +156,8 @@ export default function SettingsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <label style={{ marginTop: 0 }}>API Key</label>
-            <input name="ge_key" type="password" autoComplete="new-password" value={gemini.apiKey} onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder={p.gemini.configured ? "•••• saved (blank = keep)" : "AIza••••"} />
+            <input name="ge_key" type="password" autoComplete="new-password" value={gemini.apiKey} onChange={(e) => setGemini({ ...gemini, apiKey: e.target.value })} placeholder={p.gemini.keyMask ? "blank = keep saved" : "AIza••••"} />
+            {p.gemini.keyMask && <div className="page-sub mono" style={{ margin: "4px 0 0" }}>saved: {p.gemini.keyMask}</div>}
           </div>
           <div style={{ minWidth: 180 }}>
             <label style={{ marginTop: 0 }}>Model</label>

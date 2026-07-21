@@ -106,8 +106,16 @@ export async function deleteCredentials(orgId: string, provider: Provider): Prom
   invalidateCredCache(orgId, provider);
 }
 
+// Masked preview of a secret: a few dots + the last 6 characters, so the UI can
+// show "•••••••146cd" without exposing the full value. Empty → null.
+function mask(v?: string): string | null {
+  if (!v) return null;
+  if (v.length <= 6) return "•".repeat(v.length);
+  return "••••••" + v.slice(-6);
+}
+
 // Which providers are configured (from DB or env), and which fields exist — for
-// the Settings UI. Never returns secret values, only booleans + safe hints.
+// the Settings UI. Never returns full secret values, only masked hints.
 export async function providerStatus(orgId: string) {
   const [plivo, cartesia, gemini] = await Promise.all([
     resolvePlivo(orgId),
@@ -127,18 +135,20 @@ export async function providerStatus(orgId: string) {
       // form can display the saved value. The Auth Token is never returned.
       authId: plivo.authId ?? null,
       defaultNumber: plivo.defaultNumber ?? null,
-      hasToken: Boolean(plivo.authToken)
+      tokenMask: mask(plivo.authToken)
     },
     cartesia: {
       configured: Boolean(cartesia.apiKey),
       source: cartesiaDb?.apiKey ? "dashboard" : cartesia.apiKey ? "env" : "none",
       voiceId: cartesia.voiceId ?? null,
-      model: cartesia.model ?? null
+      model: cartesia.model ?? null,
+      keyMask: mask(cartesia.apiKey)
     },
     gemini: {
       configured: Boolean(gemini.apiKey),
       source: geminiDb?.apiKey ? "dashboard" : gemini.apiKey ? "env" : "none",
-      model: gemini.model ?? null
+      model: gemini.model ?? null,
+      keyMask: mask(gemini.apiKey)
     }
   };
 }
